@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SATRIYA">
+    
+    <title>SATRIYAPANGESTU - Daftar Tugas</title>
+    
+    <!-- PWA Manifest via Data URI -->
+    <link rel="manifest" id="pwa-manifest">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Inter:wght@400;600;700&display=swap');
+        
+        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+        .graffiti-text {
+            font-family: 'Permanent Marker', cursive;
+            text-shadow: 3px 3px 0px #2563eb;
+            transform: rotate(-2deg);
+            display: inline-block;
+        }
+        .completed-text { opacity: 0.5; font-style: italic; }
+        
+        /* Banner Installasi */
+        #install-prompt {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: #2563eb;
+            color: white;
+            padding: 16px;
+            z-index: 9999;
+            border-radius: 16px;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            animation: slideUp 0.5s ease;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        @media print {
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            .pagination-container { display: none !important; }
+        }
+        .print-only { display: none; }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 min-h-screen py-8 px-4 flex flex-col">
+
+    <!-- Tombol Install PWA -->
+    <div id="install-prompt" class="no-print">
+        <p class="text-sm mb-3">Tambahkan ke Layar Utama untuk akses lebih cepat!</p>
+        <div class="flex gap-2 justify-center">
+            <button id="btn-install-now" class="bg-white text-blue-600 px-6 py-2 rounded-xl text-xs font-bold uppercase shadow-sm">Pasang</button>
+            <button onclick="document.getElementById('install-prompt').style.display='none'" class="bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold">Nanti</button>
+        </div>
+    </div>
+
+    <div class="max-w-md mx-auto w-full flex-grow">
+        <header class="mb-10 text-center">
+            <h1 class="text-4xl font-bold text-blue-600 dark:text-blue-400 graffiti-text">SATRIYAPANGESTU</h1>
+            <p class="text-gray-500 mt-4 no-print font-medium">Bengkel Task Manager</p>
+        </header>
+
+        <!-- Progress Kerja -->
+        <div class="no-print bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm mb-6 border border-gray-100 dark:border-gray-700">
+            <div class="flex justify-between mb-2">
+                <span class="text-xs font-bold dark:text-gray-300 uppercase tracking-wider">Progres Kerja</span>
+                <span id="progress-text" class="text-xs font-bold text-blue-600">0%</span>
+            </div>
+            <div class="w-full bg-gray-200 dark:bg-gray-700 h-2.5 rounded-full overflow-hidden">
+                <div id="progress-bar" class="bg-blue-600 h-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <!-- Input Rencana -->
+        <div class="no-print relative mb-6">
+            <input type="text" id="task-input" placeholder="Tulis rencana kerja..." class="w-full p-4 rounded-xl border dark:bg-gray-800 dark:text-white dark:border-gray-700 outline-none focus:ring-2 focus:ring-blue-500 shadow-sm transition-all">
+            <button id="add-btn" class="absolute right-2 top-2 bg-blue-600 text-white p-2 px-4 rounded-lg hover:bg-blue-700 transition-colors">
+                <i class="fas fa-plus"></i>
+            </button>
+        </div>
+
+        <!-- Filter dan Print -->
+        <div class="no-print flex gap-2 mb-6">
+            <input type="date" id="date-filter" onchange="resetPageAndRender()" class="flex-1 p-2 rounded-lg border dark:bg-gray-800 dark:text-white dark:border-gray-700 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+            <button onclick="printPDF()" class="bg-green-600 hover:bg-green-700 text-white p-2 px-4 rounded-lg text-sm font-bold transition-colors flex items-center gap-2">
+                <i class="fas fa-print"></i> PDF
+            </button>
+        </div>
+
+        <!-- Aksi Massal -->
+        <div id="bulk-actions" class="hidden no-print flex justify-between items-center mb-4 p-3 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-100 dark:border-red-900/20">
+            <span id="selected-count" class="text-xs font-bold text-red-600">0 dipilih</span>
+            <button onclick="deleteSelected()" class="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-colors">Hapus Semua</button>
+        </div>
+
+        <!-- List Tugas -->
+        <ul id="task-list" class="space-y-3"></ul>
+
+        <!-- Pagination Controls -->
+        <div id="pagination-container" class="no-print mt-6 flex items-center justify-center gap-4 hidden">
+            <button onclick="prevPage()" id="btn-prev" class="w-10 h-10 flex items-center justify-center rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+                <i class="fas fa-chevron-left"></i>
+            </button>
+            <span id="page-info" class="text-xs font-bold text-gray-500 uppercase tracking-widest">Halaman 1</span>
+            <button onclick="nextPage()" id="btn-next" class="w-10 h-10 flex items-center justify-center rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+                <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+
+        <div id="empty-state" class="text-center py-20 text-gray-400 hidden flex flex-col items-center">
+            <i class="fas fa-clipboard-list text-4xl mb-2 opacity-20"></i>
+            <p>Tidak ada rencana untuk tanggal ini.</p>
+        </div>
+    </div>
+
+    <footer class="mt-auto py-6 text-center">
+        <p class="text-[10px] text-gray-400 dark:text-gray-600 tracking-widest uppercase">&copy; 2026-2027 Bengkel</p>
+    </footer>
+
+    <script>
+        // --- LOGIC PWA ---
+        const manifestData = {
+            "name": "SATRIYAPANGESTU",
+            "short_name": "SATRIYA",
+            "start_url": window.location.href,
+            "display": "standalone",
+            "background_color": "#ffffff",
+            "theme_color": "#2563eb",
+            "icons": [{
+                "src": "https://cdn-icons-png.flaticon.com/512/906/906334.png",
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "any maskable"
+            }]
+        };
+        const stringManifest = JSON.stringify(manifestData);
+        const manifestBlob = new Blob([stringManifest], {type: 'application/json'});
+        document.getElementById('pwa-manifest').setAttribute('href', URL.createObjectURL(manifestBlob));
+
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            document.getElementById('install-prompt').style.display = 'block';
+        });
+
+        document.getElementById('btn-install-now').addEventListener('click', async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') document.getElementById('install-prompt').style.display = 'none';
+                deferredPrompt = null;
+            } else {
+                alert("Gunakan menu browser 'Tambahkan ke Layar Utama' secara manual.");
+            }
+        });
+
+        // --- LOGIC APLIKASI ---
+        const taskInput = document.getElementById('task-input');
+        const taskList = document.getElementById('task-list');
+        const dateFilter = document.getElementById('date-filter');
+        const paginationContainer = document.getElementById('pagination-container');
+        const pageInfo = document.getElementById('page-info');
+        const btnPrev = document.getElementById('btn-prev');
+        const btnNext = document.getElementById('btn-next');
+
+        let tasks = JSON.parse(localStorage.getItem('bengkelTasks')) || [];
+        let selected = new Set();
+        
+        // Pagination State
+        let currentPage = 1;
+        const itemsPerPage = 5;
+
+        dateFilter.value = new Date().toISOString().split('T')[0];
+
+        function save() {
+            localStorage.setItem('bengkelTasks', JSON.stringify(tasks));
+            renderTasks();
+            updateProgress();
+        }
+
+        function resetPageAndRender() {
+            currentPage = 1;
+            renderTasks();
+        }
+
+        function renderTasks() {
+            taskList.innerHTML = "";
+            const filtered = tasks.filter(t => t.date === dateFilter.value);
+            
+            if(filtered.length === 0) {
+                document.getElementById('empty-state').classList.remove('hidden');
+                paginationContainer.classList.add('hidden');
+            } else {
+                document.getElementById('empty-state').classList.add('hidden');
+                
+                // Hitung total halaman
+                const totalPages = Math.ceil(filtered.length / itemsPerPage);
+                if (totalPages > 1) {
+                    paginationContainer.classList.remove('hidden');
+                    pageInfo.innerText = `HALAMAN ${currentPage} DARI ${totalPages}`;
+                    btnPrev.disabled = currentPage === 1;
+                    btnNext.disabled = currentPage === totalPages;
+                } else {
+                    paginationContainer.classList.add('hidden');
+                }
+
+                // Ambil irisan data berdasarkan halaman saat ini
+                const startIndex = (currentPage - 1) * itemsPerPage;
+                const paginatedItems = filtered.slice(startIndex, startIndex + itemsPerPage);
+
+                paginatedItems.forEach(t => {
+                    const isSel = selected.has(t.id);
+                    const li = document.createElement('li');
+                    li.className = `p-4 bg-white dark:bg-gray-800 rounded-xl flex items-center justify-between border transition-all ${isSel ? 'border-blue-500 ring-2 ring-blue-500/10' : 'border-transparent shadow-sm'}`;
+                    li.innerHTML = `
+                        <div class="flex items-center gap-3 overflow-hidden flex-1">
+                            <div onclick="toggleSelect(${t.id})" class="no-print w-5 h-5 cursor-pointer rounded border-2 flex items-center justify-center ${isSel ? 'bg-blue-600 border-blue-600' : 'border-gray-300 dark:border-gray-600'}">
+                                ${isSel ? '<i class="fas fa-check text-white text-[8px]"></i>' : ''}
+                            </div>
+                            <button onclick="toggleDone(${t.id})" class="no-print w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-colors ${t.done ? 'bg-green-500 border-green-500' : 'border-gray-300 dark:border-gray-600 hover:border-blue-500'}">
+                                ${t.done ? '<i class="fas fa-check text-white text-xs"></i>' : ''}
+                            </button>
+                            <span class="truncate transition-opacity ${t.done ? 'completed-text text-gray-400' : 'text-gray-700 dark:text-gray-200 font-medium'}">${t.text}</span>
+                        </div>
+                        <button onclick="deleteSingle(${t.id})" class="no-print text-gray-300 hover:text-red-500 transition-colors ml-2">
+                            <i class="far fa-trash-alt"></i>
+                        </button>
+                    `;
+                    taskList.appendChild(li);
+                });
+            }
+            updateBulkUI();
+        }
+
+        // Pagination Navigation
+        function prevPage() {
+            if (currentPage > 1) {
+                currentPage--;
+                renderTasks();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
+
+        function nextPage() {
+            const filtered = tasks.filter(t => t.date === dateFilter.value);
+            const totalPages = Math.ceil(filtered.length / itemsPerPage);
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderTasks();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
+
+        function toggleDone(id) {
+            tasks = tasks.map(t => t.id === id ? {...t, done: !t.done} : t);
+            save();
+        }
+
+        function toggleSelect(id) {
+            selected.has(id) ? selected.delete(id) : selected.add(id);
+            renderTasks();
+        }
+
+        function deleteSingle(id) {
+            tasks = tasks.filter(t => t.id !== id);
+            selected.delete(id);
+            // Cek jika halaman saat ini jadi kosong setelah dihapus
+            const filtered = tasks.filter(t => t.date === dateFilter.value);
+            const totalPages = Math.ceil(filtered.length / itemsPerPage);
+            if (currentPage > totalPages && totalPages > 0) currentPage = totalPages;
+            save();
+        }
+
+        function deleteSelected() {
+            tasks = tasks.filter(t => !selected.has(t.id));
+            selected.clear();
+            currentPage = 1;
+            save();
+        }
+
+        function updateBulkUI() {
+            const bar = document.getElementById('bulk-actions');
+            if(selected.size > 0) {
+                bar.classList.remove('hidden');
+                document.getElementById('selected-count').innerText = `${selected.size} dipilih`;
+            } else {
+                bar.classList.add('hidden');
+            }
+        }
+
+        function updateProgress() {
+            const todayTasks = tasks.filter(t => t.date === dateFilter.value);
+            if(todayTasks.length === 0) {
+                document.getElementById('progress-bar').style.width = '0%';
+                document.getElementById('progress-text').innerText = '0%';
+                return;
+            }
+            const done = todayTasks.filter(t => t.done).length;
+            const pct = Math.round((done / todayTasks.length) * 100);
+            document.getElementById('progress-bar').style.width = pct + '%';
+            document.getElementById('progress-text').innerText = pct + '%';
+        }
+
+        document.getElementById('add-btn').onclick = () => {
+            const val = taskInput.value.trim();
+            if(!val) return;
+            tasks.unshift({ id: Date.now(), text: val, done: false, date: dateFilter.value });
+            taskInput.value = "";
+            currentPage = 1; // Kembali ke halaman pertama saat tambah tugas baru
+            save();
+        };
+
+        taskInput.onkeypress = (e) => { if(e.key === 'Enter') document.getElementById('add-btn').click(); };
+
+        function printPDF() { window.print(); }
+        
+        save();
+    </script>
+</body>
+</html>
